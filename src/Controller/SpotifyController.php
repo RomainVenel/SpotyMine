@@ -32,12 +32,27 @@ class SpotifyController extends AbstractController
         }
 
         $this->api->setAccessToken($this->cache->getItem('spotify_access_token')->get());
-        $top30 = $this->api->getMyTop('tracks', [
-            'limit' => 30,
-            'time_range' => 'short_term',
-        ]);
 
-        dd($top30);
+        $userId = $this->api->me()->id;
+
+        $playlistTop30 = null;
+
+        $myPlaylists = $this->api->getMyPlaylists()->items;
+        foreach ($myPlaylists as $playlist) {
+            if (str_contains($playlist->name, 'TOP30')) {
+                $playlistTop30 = $playlist;
+            }
+        }
+
+        if (is_null($playlistTop30)) {
+            $playlistTop30 = $this->generatePlaylist($userId);
+        }
+
+        $playlist = $this->api->getPlaylist($playlistTop30->id);
+
+        return $this->render('spotify/index.html.twig', [
+           'playlist' => $playlist
+        ]);
     }
 
     /**
@@ -74,5 +89,27 @@ class SpotifyController extends AbstractController
         ];
 
         return $this->redirect($this->session->getAuthorizeUrl($options));
+    }
+
+    private function generatePlaylist($userId): mixed
+    {
+
+        $top30Months = $this->api->getMyTop('tracks', [
+            'limit' => 30,
+            'time_range' => 'medium_term',
+        ]);
+
+        $this->api->createPlaylist($userId, [
+            'name' => 'TOP30 des 4 derniers mois'
+        ]);
+
+        $playlistMonths = $this->api->getMyPlaylists()->items[0];
+        $arrayTop30Id  = array_map(function($track) {
+            return $track->id;
+        }, $top30Months->items);
+
+        $this->api->replacePlaylistTracks($playlistMonths->id, $arrayTop30Id);
+
+        return $playlistMonths;
     }
 }
