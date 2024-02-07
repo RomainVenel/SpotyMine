@@ -24,8 +24,8 @@ class SpotifyController extends AbstractController
     /**
      * @throws InvalidArgumentException
      */
-    #[Route('/', name: 'app_spotify_update_playlist')]
-    public function updatePlaylist(): Response
+    #[Route('/', name: 'app_spotify_home')]
+    public function home(): Response
     {
         if (!$this->cache->hasItem('spotify_access_token')) {
             return $this->redirectToRoute('app_spotify_redirect');
@@ -33,8 +33,19 @@ class SpotifyController extends AbstractController
 
         $this->api->setAccessToken($this->cache->getItem('spotify_access_token')->get());
 
-        $userId = $this->api->me()->id;
+        $user = $this->api->me();
 
+        return $this->render('spotify/home.html.twig', [
+            'user' => $user
+        ]);
+    }
+
+    #[Route('/playlists', name: 'app_spotify_update_playlist')]
+    public function updatePlaylist(): Response
+    {
+
+        $this->api->setAccessToken($this->cache->getItem('spotify_access_token')->get());
+        $userId = $this->api->me()->id;
         $playlistTop30 = null;
 
         $myPlaylists = $this->api->getMyPlaylists()->items;
