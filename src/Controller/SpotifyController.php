@@ -31,7 +31,7 @@ class SpotifyController extends AbstractController
             return $this->redirectToRoute('app_spotify_redirect');
         }
 
-        $this->api->setAccessToken($this->cache->getItem('spotify_access_token')->get());
+        $this->tokenUser();
 
         $user = $this->api->me();
 
@@ -40,11 +40,33 @@ class SpotifyController extends AbstractController
         ]);
     }
 
+    /**
+     * @throws InvalidArgumentException
+     */
+    #[Route('/createPlaylists', name: 'app_spotify_create_playlist')]
+    public function createPlaylist(): Response
+    {
+        if (!$this->cache->hasItem('spotify_access_token')) {
+            return $this->redirectToRoute('app_spotify_redirect');
+        }
+
+        $this->tokenUser();
+
+        $user = $this->api->me();
+
+        return $this->render('spotify/createPlaylist.html.twig', [
+            'user' => $user
+        ]);
+    }
+
+    /**
+     * @throws InvalidArgumentException
+     */
     #[Route('/playlists', name: 'app_spotify_update_playlist')]
     public function updatePlaylist(): Response
     {
 
-        $this->api->setAccessToken($this->cache->getItem('spotify_access_token')->get());
+        $this->tokenUser();
         $userId = $this->api->me()->id;
         $playlistTop30 = null;
 
@@ -83,7 +105,7 @@ class SpotifyController extends AbstractController
         $cacheItem->expiresAfter(3600);
         $this->cache->save($cacheItem);
 
-        return $this->redirectToRoute('app_spotify_update_playlist');
+        return $this->redirectToRoute('app_spotify_home');
     }
     #[Route('/redirect', name: 'app_spotify_redirect')]
     public function redirectToSpotify(): Response
@@ -122,5 +144,13 @@ class SpotifyController extends AbstractController
         $this->api->replacePlaylistTracks($playlistMonths->id, $arrayTop30Id);
 
         return $playlistMonths;
+    }
+
+    /**
+     * @throws InvalidArgumentException
+     */
+    private function tokenUser(): void
+    {
+        $this->api->setAccessToken($this->cache->getItem('spotify_access_token')->get());
     }
 }
