@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Form\PlaylistType;
 use Psr\Cache\CacheItemPoolInterface;
 use Psr\Cache\InvalidArgumentException;
 use SpotifyWebAPI\Session;
@@ -44,7 +45,7 @@ class SpotifyController extends AbstractController
      * @throws InvalidArgumentException
      */
     #[Route('/createPlaylists', name: 'app_spotify_create_playlist')]
-    public function createPlaylist(): Response
+    public function createPlaylist(Request $request): Response
     {
         if (!$this->cache->hasItem('spotify_access_token')) {
             return $this->redirectToRoute('app_spotify_redirect');
@@ -54,8 +55,24 @@ class SpotifyController extends AbstractController
 
         $user = $this->api->me();
 
+        $form = $this->createForm(PlaylistType::class);
+
+        $form->handleRequest($request);
+        if ($form->isSubmitted() && $form->isValid()) {
+            $playlistData = $form->getData();
+
+            $createdPlaylist = $this->generatePlaylist($user->id, $playlistData);
+
+            $playlist = $this->api->getPlaylist($createdPlaylist->id);
+
+            return $this->render('spotify/index.html.twig', [
+                'playlist' => $playlist
+            ]);
+        }
+
         return $this->render('spotify/createPlaylist.html.twig', [
-            'user' => $user
+            'user' => $user,
+            'form' => $form
         ]);
     }
 
@@ -124,26 +141,30 @@ class SpotifyController extends AbstractController
         return $this->redirect($this->session->getAuthorizeUrl($options));
     }
 
-    private function generatePlaylist($userId): mixed
+    private function generatePlaylist($userId, $playlist): mixed
     {
 
-        $top30Months = $this->api->getMyTop('tracks', [
-            'limit' => 30,
-            'time_range' => 'medium_term',
+        $namePlaylist = $playlist['name'];
+        $limitPlaylist = $playlist['limit'];
+        $rangePlaylist = $playlist['range'];
+
+        $topPlaylist = $this->api->getMyTop('tracks', [
+            'limit' => $limitPlaylist,
+            'time_range' => $rangePlaylist . '_term',
         ]);
 
         $this->api->createPlaylist($userId, [
-            'name' => 'TOP30 des 4 derniers mois'
+            'name' => $namePlaylist
         ]);
 
-        $playlistMonths = $this->api->getMyPlaylists()->items[0];
+        $createdPlaylist = $this->api->getMyPlaylists()->items[0];
         $arrayTop30Id  = array_map(function($track) {
             return $track->id;
-        }, $top30Months->items);
+        }, $topPlaylist->items);
 
-        $this->api->replacePlaylistTracks($playlistMonths->id, $arrayTop30Id);
+        $this->api->replacePlaylistTracks($createdPlaylist->id, $arrayTop30Id);
 
-        return $playlistMonths;
+        return $createdPlaylist;
     }
 
     /**
